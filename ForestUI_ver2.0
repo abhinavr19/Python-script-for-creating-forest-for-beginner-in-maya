@@ -1,0 +1,175 @@
+#ForestUI_ver2.0
+#import libraries
+import maya.cmds as mc
+import random
+from PySide2.QtGui  import *
+from PySide2.QtCore  import *
+from PySide2.QtWidgets  import *
+
+#function to create forest
+
+def create_shader(name, node_type="lambert"):
+    material = cmds.shadingNode(node_type, name=name, asShader=True)
+    sg = cmds.sets(name="%sSG" % name, empty=True, renderable=True, noSurfaceShader=True)
+    cmds.connectAttr("%s.outColor" % material, "%s.surfaceShader" % sg)
+    return material, sg
+    
+def applyMaterial(node):
+    if mc.objExists(node):
+        shd = mc.shadingNode('lambert', name="%s_lambert" % node, asShader=True)
+        shdSG = mc.sets(name='%sSG' % shd, empty=True, renderable=True, noSurfaceShader=True)
+        mc.connectAttr('%s.outColor' % shd, '%s.surfaceShader' % shdSG)
+        mc.sets(node, e=True, forceElement=shdSG)
+    
+def terrain():
+    plane=mc.polyPlane(n="terrain",w=500,h=500,sx=70,sy=70)
+    mc.setAttr('lambert1.color' , 0.4021, 0.4709 ,0.3139 , type= "double3")
+    
+    ny=int(num_tree.text())
+    
+    #get selected object
+    sel_obj=mc.ls(selection=True)
+    vpos=[] 
+    nvpos=[]
+    #list of all the vertices
+    sel_ver=mc.ls(sel_obj[0]+'.vtx[*]',fl=True)
+    #conting the number of vertices
+    vertexCount=mc.polyEvaluate(sel_obj,vertex=True)
+    
+    #addind a slope-like structure 
+    n = random. randint(0,6)
+    arv=[]
+    for i in range(150): 
+        arv.append(random.choice(sel_ver))
+         
+    for v in arv: 
+        mc.select(v)
+        mc.move(0,n,0, r=True)
+     
+    sel_ver=mc.ls(sel_obj[0]+'.vtx[*]',fl=True)
+    
+    #get vertex position
+    for vertex in sel_ver:
+            vpos_tmp=mc.pointPosition(vertex)
+            vpos.append(vpos_tmp)
+    #randomize vertex position
+    for item in vpos:
+        #storing random value withon the range
+        randomX=random.uniform(0,0.15)
+        randomY=random.uniform(-0.25,0.25)
+        randomZ=random.uniform(0,0.15)
+        #adding the random value to the verten position to get new vertex position
+        newX=item[0]+randomX
+        newY=item[1]+randomY
+        newZ=item[2]+randomZ
+    
+        nvpos.append([newX,newY,newZ])
+    
+    #transforming ground surface
+    for i in range(vertexCount):
+        mc.xform(sel_ver[i], translation=nvpos[i],ws=True)
+    
+    
+        
+        
+    #spawn tree
+    nl=[]
+    for x in range(ny):
+        n=random.randint(0,vertexCount)
+        if n not in nl:
+            nl.append(n)
+        
+    for i in nl:
+   
+         #getting vertex position to spawn trees
+         
+         ver=nvpos[i]
+         x=ver[0]
+         y=ver[1]
+         z=ver[2]
+         
+         #randomize height of the tree
+         maxt=int(mxt.text())
+         mint=int(mnt.text())
+         ht=random.uniform(mint,maxt)
+         #creating tree trunk
+         tree_main=mc.polyCylinder(r=ht/10,h=ht,sx=8)
+         #Assigning new material to the tree trunk
+         applyMaterial("tree_main")
+        
+         #adding color to the trunk
+         meshes = cmds.ls(selection=True, dag=True, type="mesh", noIntermediate=True)
+         mtl, sg = create_shader("lamb")
+         k = random.randint(0,1)
+         if (k==0):
+             mc.setAttr(mtl + ".color" ,1 ,0.3633, 0 , type= "double3")
+         else:
+             mc.setAttr(mtl + ".color" ,0.1539, 0.0835, 0.015, type= "double3")
+             
+         cmds.sets(meshes, forceElement=sg)
+      
+         #moving tree trunk
+         mc.move(x,y+(ht/2.0)-0.25,z,tree_main)
+         #creating tree leaf
+         tree_leaf=mc.polySphere(r=ht,sx=8,sy=8)
+         #Assigning new material tree leaf
+         applyMaterial("tree_leaf")
+         #adding color to tree leaf
+         meshes = cmds.ls(selection=True, dag=True, type="mesh", noIntermediate=True)
+         mtl, sg = create_shader("leaf")
+         k = random.randint(0,2)
+         if (k==0):
+             mc.setAttr(mtl + ".color" ,0.0514, 0.2916, 0.0514, type= "double3")
+         elif(k==1):
+             mc.setAttr(mtl + ".color",0,1,0, type= "double3")
+         else:
+             mc.setAttr(mtl + ".color",0.0122, 0.3123, 0.0122, type= "double3")
+                          
+                          
+         cmds.sets(meshes, forceElement=sg)
+         #moving tree leaf
+         mc.move(x,(y+ht+ht),z,tree_leaf)
+         #scaling leaf
+         mc.scale(0.5,1.25,0.5,tree_leaf)
+         #grouping trr_main and tree_leaf together
+         mc.select(tree_main,tree_leaf)
+         mc.group(n="tree")
+         
+
+#create UI
+app= QApplication.instance()        
+tool=QWidget()
+tool.setFixedSize(400,300)
+
+tool.setWindowTitle("Forest")
+lay=QVBoxLayout()
+tool.setLayout(lay)
+
+#Input Variables
+num_tree=QLineEdit()
+avg_tree=QLineEdit()
+mxt=QLineEdit()
+mnt=QLineEdit()
+sp=QSplitter(Qt.Horizontal)
+sp.setSizes([100,200])
+
+
+#Adding Widgets to the UI
+lay.addWidget(QLabel("Creates random height trees at random vertices"))
+lay.addWidget(sp)
+lay.addWidget(QLabel("Enter the number Trees:"))
+lay.addWidget(num_tree)
+lay.addWidget(QLabel("Max Tree Height:"))
+lay.addWidget(mxt)
+lay.addWidget(QLabel("Min Tree Height:"))
+lay.addWidget(mnt)
+ok=QPushButton("Apply")
+
+lay.addWidget(ok)
+
+#connect button with function
+ok.clicked.connect(terrain)
+#Show tool
+tool.show()
+
+
